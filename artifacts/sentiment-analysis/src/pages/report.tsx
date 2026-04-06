@@ -112,7 +112,7 @@ export default function Report() {
                 <div className="flex-1">
                   <p className="font-medium text-sm">Sample Validation Set</p>
                   <p className="text-xs text-muted-foreground">
-                    {loadingSamples ? "Loading..." : `${sampleData?.samples.length || 0} texts ready for analysis`}
+                    {loadingSamples ? "Loading..." : `${sampleData?.samples?.length || 0} texts ready for analysis`}
                   </p>
                 </div>
               </div>
