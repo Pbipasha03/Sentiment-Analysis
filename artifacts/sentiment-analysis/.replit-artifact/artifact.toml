@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Microtext Sentiment Analyzer"
+version = "1.0.0"
+id = "artifacts/sentiment-analysis"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23471
+
+[services.development]
+run = "pnpm --filter @workspace/sentiment-analysis run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/sentiment-analysis", "run", "build" ]
+publicDir = "artifacts/sentiment-analysis/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23471"
+BASE_PATH = "/"

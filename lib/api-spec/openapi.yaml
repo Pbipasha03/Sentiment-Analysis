@@ -3,13 +3,20 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Microtext Sentiment Analysis API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: sentiment
+    description: Sentiment analysis operations
+  - name: dataset
+    description: Dataset operations
+  - name: models
+    description: ML model operations
+
 paths:
   /healthz:
     get:
@@ -24,6 +31,162 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /sentiment/analyze:
+    post:
+      operationId: analyzeSentiment
+      tags: [sentiment]
+      summary: Analyze sentiment of text
+      description: Analyze sentiment of custom text input using selected or all ML models
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeTextRequest"
+      responses:
+        "200":
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeTextResponse"
+
+  /sentiment/analyze-batch:
+    post:
+      operationId: analyzeBatch
+      tags: [sentiment]
+      summary: Analyze sentiment of multiple texts
+      description: Analyze sentiment of a batch of texts (from uploaded CSV)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeBatchRequest"
+      responses:
+        "200":
+          description: Batch analysis results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeBatchResponse"
+
+  /dataset/sample:
+    get:
+      operationId: getSampleDataset
+      tags: [dataset]
+      summary: Get sample dataset
+      description: Returns pre-loaded sample tweets with their sentiment labels
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Sample dataset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SampleDatasetResponse"
+
+  /models/train:
+    post:
+      operationId: trainModels
+      tags: [models]
+      summary: Train ML models
+      description: Train all ML models on the provided dataset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrainRequest"
+      responses:
+        "200":
+          description: Training results with model metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrainResponse"
+
+  /models/metrics:
+    get:
+      operationId: getModelMetrics
+      tags: [models]
+      summary: Get model performance metrics
+      description: Returns the last-trained model metrics including accuracy, confusion matrix, etc.
+      responses:
+        "200":
+          description: Model metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelMetricsResponse"
+
+  /models/compare:
+    post:
+      operationId: compareModels
+      tags: [models]
+      summary: Compare ML models on text
+      description: Run all models on same text and compare results
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompareRequest"
+      responses:
+        "200":
+          description: Comparison results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompareResponse"
+
+  /report/generate:
+    post:
+      operationId: generateReport
+      tags: [sentiment]
+      summary: Generate analysis report
+      description: Generate a downloadable JSON/CSV report of analysis results
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateReportRequest"
+      responses:
+        "200":
+          description: Report data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportResponse"
+
+  /dataset/wordcloud:
+    post:
+      operationId: getWordCloudData
+      tags: [dataset]
+      summary: Get word frequency data for word cloud
+      description: Returns word frequencies for a given set of texts and sentiment filter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WordCloudRequest"
+      responses:
+        "200":
+          description: Word frequency data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WordCloudResponse"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +197,312 @@ components:
       required:
         - status
 
+    SentimentLabel:
+      type: string
+      enum: [positive, negative, neutral]
+
+    ModelName:
+      type: string
+      enum: [naive_bayes, logistic_regression, svm]
+
+    SentimentResult:
+      type: object
+      properties:
+        label:
+          $ref: "#/components/schemas/SentimentLabel"
+        confidence:
+          type: number
+        scores:
+          type: object
+          properties:
+            positive:
+              type: number
+            negative:
+              type: number
+            neutral:
+              type: number
+          required: [positive, negative, neutral]
+        model:
+          $ref: "#/components/schemas/ModelName"
+        processedText:
+          type: string
+      required: [label, confidence, scores, model, processedText]
+
+    AnalyzeTextRequest:
+      type: object
+      properties:
+        text:
+          type: string
+        model:
+          $ref: "#/components/schemas/ModelName"
+      required: [text]
+
+    AnalyzeTextResponse:
+      type: object
+      properties:
+        originalText:
+          type: string
+        result:
+          $ref: "#/components/schemas/SentimentResult"
+        allModels:
+          type: array
+          items:
+            $ref: "#/components/schemas/SentimentResult"
+        keywords:
+          type: array
+          items:
+            type: string
+        processingTimeMs:
+          type: number
+      required: [originalText, result, allModels, keywords, processingTimeMs]
+
+    AnalyzeBatchRequest:
+      type: object
+      properties:
+        texts:
+          type: array
+          items:
+            type: string
+        model:
+          $ref: "#/components/schemas/ModelName"
+        textColumn:
+          type: string
+      required: [texts]
+
+    BatchTextResult:
+      type: object
+      properties:
+        index:
+          type: integer
+        text:
+          type: string
+        label:
+          $ref: "#/components/schemas/SentimentLabel"
+        confidence:
+          type: number
+        model:
+          $ref: "#/components/schemas/ModelName"
+      required: [index, text, label, confidence, model]
+
+    AnalyzeBatchResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchTextResult"
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            positive:
+              type: integer
+            negative:
+              type: integer
+            neutral:
+              type: integer
+            positivePercent:
+              type: number
+            negativePercent:
+              type: number
+            neutralPercent:
+              type: number
+          required: [total, positive, negative, neutral, positivePercent, negativePercent, neutralPercent]
+        processingTimeMs:
+          type: number
+      required: [results, summary, processingTimeMs]
+
+    SampleDatasetResponse:
+      type: object
+      properties:
+        samples:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              text:
+                type: string
+              label:
+                $ref: "#/components/schemas/SentimentLabel"
+              source:
+                type: string
+            required: [id, text, label, source]
+        total:
+          type: integer
+        datasetName:
+          type: string
+      required: [samples, total, datasetName]
+
+    TrainRequest:
+      type: object
+      properties:
+        texts:
+          type: array
+          items:
+            type: string
+        labels:
+          type: array
+          items:
+            $ref: "#/components/schemas/SentimentLabel"
+        useDefaultDataset:
+          type: boolean
+      required: []
+
+    ConfusionMatrix:
+      type: object
+      properties:
+        matrix:
+          type: array
+          items:
+            type: array
+            items:
+              type: integer
+        labels:
+          type: array
+          items:
+            type: string
+      required: [matrix, labels]
+
+    ModelMetrics:
+      type: object
+      properties:
+        model:
+          $ref: "#/components/schemas/ModelName"
+        accuracy:
+          type: number
+        precision:
+          type: number
+        recall:
+          type: number
+        f1Score:
+          type: number
+        confusionMatrix:
+          $ref: "#/components/schemas/ConfusionMatrix"
+        classReport:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              precision:
+                type: number
+              recall:
+                type: number
+              f1Score:
+                type: number
+              support:
+                type: integer
+            required: [precision, recall, f1Score, support]
+        trainingSamples:
+          type: integer
+        testSamples:
+          type: integer
+        trainingTimeMs:
+          type: number
+      required: [model, accuracy, precision, recall, f1Score, confusionMatrix, classReport, trainingSamples, testSamples, trainingTimeMs]
+
+    TrainResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelMetrics"
+        bestModel:
+          $ref: "#/components/schemas/ModelName"
+        totalTimeMs:
+          type: number
+      required: [success, metrics, bestModel, totalTimeMs]
+
+    ModelMetricsResponse:
+      type: object
+      properties:
+        trained:
+          type: boolean
+        metrics:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelMetrics"
+        bestModel:
+          $ref: "#/components/schemas/ModelName"
+        lastTrainedAt:
+          type: string
+          nullable: true
+      required: [trained, metrics]
+
+    CompareRequest:
+      type: object
+      properties:
+        text:
+          type: string
+      required: [text]
+
+    CompareResponse:
+      type: object
+      properties:
+        text:
+          type: string
+        comparisons:
+          type: array
+          items:
+            $ref: "#/components/schemas/SentimentResult"
+        consensus:
+          $ref: "#/components/schemas/SentimentLabel"
+        agreement:
+          type: number
+      required: [text, comparisons, consensus, agreement]
+
+    GenerateReportRequest:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/BatchTextResult"
+        format:
+          type: string
+          enum: [json, csv]
+        includeMetrics:
+          type: boolean
+      required: [results, format]
+
+    ReportResponse:
+      type: object
+      properties:
+        data:
+          type: string
+        filename:
+          type: string
+        format:
+          type: string
+      required: [data, filename, format]
+
+    WordCloudRequest:
+      type: object
+      properties:
+        texts:
+          type: array
+          items:
+            type: string
+        sentimentFilter:
+          $ref: "#/components/schemas/SentimentLabel"
+      required: [texts]
+
+    WordCloudResponse:
+      type: object
+      properties:
+        words:
+          type: array
+          items:
+            type: object
+            properties:
+              text:
+                type: string
+              value:
+                type: integer
+            required: [text, value]
+      required: [words]
