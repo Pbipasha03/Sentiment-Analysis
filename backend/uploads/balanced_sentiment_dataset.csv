@@ -1,0 +1,31 @@
+text,sentiment
+"I absolutely love this product, it works perfectly",Positive
+"Amazing experience, highly recommended",Positive
+Very happy with the service and support,Positive
+Excellent quality and great performance,Positive
+"Superb product, worth every penny",Positive
+I am extremely satisfied with my purchase,Positive
+Fantastic service and friendly staff,Positive
+This is the best thing I have bought,Positive
+"Great experience, will buy again",Positive
+Really impressive and reliable product,Positive
+This is the worst product I have ever used,Negative
+"Very bad experience, totally disappointed",Negative
+"Waste of money, not recommended",Negative
+Terrible quality and poor service,Negative
+"I hate this product, useless",Negative
+Extremely disappointing performance,Negative
+Not worth the price at all,Negative
+"Awful experience, will not buy again",Negative
+Very poor quality and slow service,Negative
+Completely dissatisfied with this product,Negative
+"The product is okay, nothing special",Neutral
+"Average performance, not too good not too bad",Neutral
+It works fine for basic use,Neutral
+Just a normal product,Neutral
+"Decent quality, acceptable",Neutral
+It is neither good nor bad,Neutral
+Average experience overall,Neutral
+Nothing impressive but works,Neutral
+Okay for daily use,Neutral
+Standard product with average features,Neutral
