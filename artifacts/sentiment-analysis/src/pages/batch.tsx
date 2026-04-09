@@ -4,12 +4,66 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useState, useRef } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, UploadCloud, FileText } from "lucide-react";
+import { Loader2, UploadCloud, FileText, AlertCircle } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from "recharts";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+// Helper: Parse CSV string into array of rows
+function parseCSV(csvContent: string): string[] {
+  const lines = csvContent.split('\n').filter(line => line.trim().length > 0);
+  
+  if (lines.length === 0) return [];
+  
+  const texts: string[] = [];
+  
+  // Check if first line is a header
+  const firstLine = lines[0].toLowerCase();
+  const hasHeader = 
+    firstLine.includes('text') || 
+    firstLine.includes('tweet') || 
+    firstLine.includes('content') ||
+    firstLine.includes('message') ||
+    firstLine.includes('sentence');
+  
+  const startIndex = hasHeader ? 1 : 0;
+  
+  // Parse each line as CSV
+  for (let i = startIndex; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    
+    // Parse CSV line with quoted strings support
+    let text = '';
+    
+    if (line.includes('"')) {
+      // Handle quoted CSV
+      const quotedMatch = line.match(/"([^"]*)"/);
+      if (quotedMatch) {
+        text = quotedMatch[1];
+      } else {
+        text = line;
+      }
+    } else if (line.includes(',')) {
+      // Handle comma-separated
+      const parts = line.split(',');
+      text = parts[0].trim();
+    } else {
+      // Assume whole line is text
+      text = line;
+    }
+    
+    if (text && text.length > 0) {
+      texts.push(text);
+    }
+  }
+  
+  return texts;
+}
 
 export default function BatchAnalysis() {
   const [model, setModel] = useState<string>("naive_bayes");
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { data: metricsData } = useGetModelMetrics();
@@ -17,40 +71,64 @@ export default function BatchAnalysis() {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      setError(null);
+      return;
+    }
+
+    // Validate file
+    if (!file.name.endsWith('.csv') && !file.name.endsWith('.txt')) {
+      setError("❌ Please upload a .csv or .txt file");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) { // 10MB limit
+      setError("❌ File too large (max 10MB)");
+      return;
+    }
 
     const reader = new FileReader();
+    
     reader.onload = (event) => {
-      const csv = event.target?.result as string;
-      // Simple CSV parsing (split by newline, skip header if present, handle simple quotes)
-      const lines = csv.split('\n').filter(line => line.trim().length > 0);
-      
-      let texts: string[] = [];
-      // Try to determine if first line is header
-      const firstLine = lines[0].toLowerCase();
-      const hasHeader = firstLine.includes('text') || firstLine.includes('tweet') || firstLine.includes('content');
-      
-      const startIndex = hasHeader ? 1 : 0;
-      
-      for (let i = startIndex; i < lines.length; i++) {
-        // Very basic CSV parsing - just grab the first column or assume the whole line is text
-        let text = lines[i];
-        if (text.includes(',')) {
-          // Try to extract a quoted string if present, otherwise just use the first column
-          const match = text.match(/(?:^|,)(?:"([^"]*)"|([^,]*))/);
-          if (match) {
-            text = match[1] || match[2] || text;
-          }
+      try {
+        const csvContent = event.target?.result as string;
+        
+        if (!csvContent || csvContent.trim().length === 0) {
+          setError("❌ File is empty");
+          return;
         }
-        if (text.trim()) {
-          texts.push(text.trim());
-        }
-      }
 
-      if (texts.length > 0) {
-        batchMutation.mutate({ data: { texts, model: model as any } });
+        // Parse CSV
+        const texts = parseCSV(csvContent);
+        
+        if (texts.length === 0) {
+          setError("❌ No text data found in file. Make sure CSV has text in first column.");
+          return;
+        }
+
+        if (texts.length > 1000) {
+          setError(`⚠️ File has ${texts.length} rows. Processing limited to 1000 rows.`);
+        }
+
+        setError(null);
+        
+        // Send batch prediction request
+        console.log(`📤 Sending ${texts.length} texts to backend for analysis...`);
+        batchMutation.mutate({ 
+          data: { 
+            texts: texts.slice(0, 1000), // Limit to 1000
+            model: model as any 
+          } 
+        });
+      } catch (err) {
+        setError(`❌ Error parsing file: ${err instanceof Error ? err.message : 'Unknown error'}`);
       }
     };
+    
+    reader.onerror = () => {
+      setError("❌ Error reading file");
+    };
+    
     reader.readAsText(file);
   };
 
@@ -70,9 +148,25 @@ export default function BatchAnalysis() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Batch Analysis</h1>
         <p className="text-muted-foreground mt-2">
-          Upload datasets to analyze multiple texts simultaneously.
+          Upload CSV files to analyze multiple texts simultaneously.
         </p>
       </div>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {batchMutation.error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            API Error: {(batchMutation.error as any)?.message || 'Failed to analyze batch'}
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="grid gap-6 md:grid-cols-12">
         <div className="md:col-span-4 space-y-4">
@@ -84,7 +178,7 @@ export default function BatchAnalysis() {
             <CardContent className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Model Selection</label>
-                <Select value={model} onValueChange={setModel}>
+                <Select value={model} onValueChange={setModel} disabled={batchMutation.isPending}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a model" />
                   </SelectTrigger>
@@ -103,22 +197,27 @@ export default function BatchAnalysis() {
                   className="hidden" 
                   ref={fileInputRef}
                   onChange={handleFileUpload}
+                  disabled={batchMutation.isPending || !isTrained}
                 />
                 <Button 
                   className="w-full" 
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click();
+                    }
+                  }}
                   disabled={batchMutation.isPending || !isTrained}
                 >
                   {batchMutation.isPending ? (
                     <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing...</>
                   ) : !isTrained ? (
-                    "Models not trained"
+                    "❌ Train Models First"
                   ) : (
                     <><UploadCloud className="mr-2 h-4 w-4" /> Upload CSV</>
                   )}
                 </Button>
                 <p className="text-xs text-muted-foreground text-center">
-                  CSV format: First column should contain the text
+                  CSV format: First column should contain text data
                 </p>
               </div>
             </CardContent>
@@ -196,8 +295,11 @@ export default function BatchAnalysis() {
                     <TableBody>
                       {batchMutation.data.results.map((result, i) => (
                         <TableRow key={i}>
-                          <TableCell className="font-medium text-xs max-w-[300px] truncate" title={result.text}>
-                            {result.text}
+                          <TableCell 
+                            className="font-medium text-xs max-w-[300px]" 
+                            title={result.text}
+                          >
+                            <p className="truncate">{result.text}</p>
                           </TableCell>
                           <TableCell>
                             <Badge 
@@ -223,6 +325,7 @@ export default function BatchAnalysis() {
                 <div className="h-full min-h-[400px] flex flex-col items-center justify-center text-muted-foreground border-2 border-dashed rounded-lg">
                   <FileText className="w-12 h-12 opacity-20 mb-4" />
                   <p>Awaiting dataset</p>
+                  <p className="text-xs mt-2">Upload a CSV file to get started</p>
                 </div>
               )}
             </CardContent>

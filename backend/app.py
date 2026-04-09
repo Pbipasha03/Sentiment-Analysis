@@ -346,6 +346,107 @@ def api_analyze_sentiment():
     return jsonify(build_sentiment_response(text, model_name))
 
 
+@app.route("/api/sentiment/analyze-batch", methods=["POST"])
+def api_analyze_batch():
+    """Analyze sentiment for batch of texts (from CSV upload).
+    
+    Request body:
+    {
+        "data": {
+            "texts": ["text1", "text2", ...],
+            "model": "naive_bayes" | "logistic_regression" | "svm"
+        }
+    }
+    
+    Response:
+    {
+        "results": [
+            {"text": "...", "label": "positive"/"negative"/"neutral", "confidence": 0.95},
+            ...
+        ],
+        "summary": {
+            "total": 10,
+            "positive": 6,
+            "negative": 2,
+            "neutral": 2
+        },
+        "processingTimeMs": 123
+    }
+    """
+    try:
+        start_time = time.time()
+        data = request.get_json() or {}
+        batch_data = data.get("data", {})
+        texts = batch_data.get("texts", [])
+        model_name = batch_data.get("model", "naive_bayes")
+        
+        # Validate input
+        if not texts or not isinstance(texts, list):
+            return jsonify({"error": "Request must include 'data.texts' as non-empty array"}), 400
+        
+        if not all(isinstance(t, str) and t.strip() for t in texts):
+            return jsonify({"error": "All texts must be non-empty strings"}), 400
+        
+        # Check if models are trained
+        if not vectorizer or not models:
+            return jsonify({"error": "Models not trained. Please train models first."}), 400
+        
+        # Process each text
+        results = []
+        for text in texts:
+            try:
+                # Preprocess
+                clean_text = preprocess(text)
+                
+                # Vectorize
+                vector = vectorizer.transform([clean_text])
+                
+                # Get model
+                model = get_model(model_name)
+                if not model:
+                    model = next(iter(models.values()))
+                
+                # Get predictions
+                scores = normalize_probs(model, vector)
+                label = max(scores, key=scores.get)
+                confidence = float(scores[label])
+                
+                results.append({
+                    "text": text[:100],  # Truncate for display
+                    "label": label.lower(),  # "positive", "negative", "neutral"
+                    "confidence": round(confidence, 2),
+                    "scores": {k: round(v, 3) for k, v in scores.items()}
+                })
+            except Exception as e:
+                # If one text fails, still process others but mark as error
+                results.append({
+                    "text": text[:100],
+                    "label": "unknown",
+                    "confidence": 0.0,
+                    "error": str(e)
+                })
+        
+        # Compute summary
+        summary = {
+            "total": len(results),
+            "positive": sum(1 for r in results if r.get("label") == "positive"),
+            "negative": sum(1 for r in results if r.get("label") == "negative"),
+            "neutral": sum(1 for r in results if r.get("label") == "neutral"),
+        }
+        
+        processing_time_ms = int((time.time() - start_time) * 1000)
+        
+        return jsonify({
+            "results": results,
+            "summary": summary,
+            "processingTimeMs": processing_time_ms,
+            "model": model_name
+        }), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Batch processing failed: {str(e)}"}), 500
+
+
 @app.route("/api/models/train", methods=["POST"])
 def api_train_models():
     data = request.get_json() or {}
