@@ -1,7 +1,7 @@
 """
 app.py
 ======
-Flask API for Microtext Sentiment Analysis.
+Flask API for Microtext Sentiment Analysis with multi-class emotion detection.
 This backend exposes /api routes for the React frontend at http://localhost:5173.
 
 HOW TO START:
@@ -12,7 +12,12 @@ ENDPOINTS:
     GET  /api/models/metrics
     POST /api/sentiment/analyze
     POST /api/models/train
-    POST /predict
+    POST /api/models/compare
+    
+    // EMOTION MODEL ENDPOINTS (new)
+    GET  /api/emotion/metrics
+    POST /api/emotion/analyze
+    POST /api/emotion/compare
 """
 
 import json
@@ -48,6 +53,15 @@ LR_MODEL_PATH = ROOT_DIR / "logistic_regression.pkl"
 DATASET_PATH = ROOT_DIR / "dataset.csv"
 LABELS = ["negative", "neutral", "positive"]
 
+# EMOTION MODEL PATHS
+EMOTION_VECTORIZER_PATH = ROOT_DIR / "emotion_vectorizer.pkl"
+EMOTION_NB_PATH = ROOT_DIR / "emotion_naive_bayes.pkl"
+EMOTION_LR_PATH = ROOT_DIR / "emotion_logistic_regression.pkl"
+EMOTION_SVM_PATH = ROOT_DIR / "emotion_svm.pkl"
+EMOTIONS_DATASET_PATH = ROOT_DIR / "emotions_dataset.csv"
+EMOTION_METRICS_PATH = ROOT_DIR / "metrics_summary.json"
+EMOTION_LABELS = ["happy", "sad", "angry", "fear", "neutral", "surprise"]
+
 
 # ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -79,6 +93,26 @@ def load_models():
     return models
 
 
+def load_emotion_models():
+    """Load all emotion classification models."""
+    emotion_models = {}
+    if EMOTION_NB_PATH.exists():
+        emotion_models["naive_bayes"] = load_pickle(EMOTION_NB_PATH)
+    if EMOTION_LR_PATH.exists():
+        emotion_models["logistic_regression"] = load_pickle(EMOTION_LR_PATH)
+    if EMOTION_SVM_PATH.exists():
+        emotion_models["svm"] = load_pickle(EMOTION_SVM_PATH)
+    return emotion_models
+
+
+def load_emotion_metrics():
+    """Load pre-computed emotion model metrics."""
+    if EMOTION_METRICS_PATH.exists():
+        with open(EMOTION_METRICS_PATH, "r") as f:
+            return json.load(f)
+    return None
+
+
 def get_model(model_name):
     if model_name == "svm":
         model_name = "logistic_regression"
@@ -98,6 +132,28 @@ def normalize_probs(model, vector):
         probs[pred] = 1.0
     total = sum(probs.values()) or 1.0
     return {label: probs.get(label, 0.0) / total for label in LABELS}
+
+
+def get_emotion_model(model_name):
+    """Get emotion model by name."""
+    if model_name in emotion_models:
+        return emotion_models[model_name]
+    # Default to first available emotion model
+    return next(iter(emotion_models.values())) if emotion_models else None
+
+
+def normalize_emotion_probs(model, vector):
+    """Normalize emotion model probabilities."""
+    if hasattr(model, "predict_proba"):
+        proba = model.predict_proba(vector)[0]
+        classes = list(model.classes_)
+        probs = {label: float(proba[classes.index(label)]) if label in classes else 0.0 for label in EMOTION_LABELS}
+    else:
+        pred = model.predict(vector)[0]
+        probs = {label: 0.0 for label in EMOTION_LABELS}
+        probs[pred] = 1.0
+    total = sum(probs.values()) or 1.0
+    return {label: round(probs.get(label, 0.0) / total, 4) for label in EMOTION_LABELS}
 
 
 def build_sentiment_result_one(text, model_name):
@@ -218,7 +274,24 @@ if not VECTORIZER_PATH.exists() or not MODEL_PATH.exists():
 
 vectorizer = load_pickle(VECTORIZER_PATH)
 models = load_models()
-print("Loaded models:", list(models.keys()))
+print("Loaded sentiment models:", list(models.keys()))
+
+# Load emotion models and vectorizer
+emotion_vectorizer = None
+emotion_models = {}
+emotion_metrics = None
+
+if EMOTION_VECTORIZER_PATH.exists():
+    emotion_vectorizer = load_pickle(EMOTION_VECTORIZER_PATH)
+    emotion_models = load_emotion_models()
+    emotion_metrics = load_emotion_metrics()
+    print("Loaded emotion models:", list(emotion_models.keys()))
+    if emotion_metrics:
+        print(f"  Emotion dataset: {emotion_metrics.get('dataset_size')} samples")
+        print(f"  Best emotion model: {emotion_metrics.get('best_model')}")
+else:
+    print("Warning: emotion model files not found. Emotion endpoints will be unavailable.")
+    print("         Run `python train_emotion_models.py` to train emotion models.")
 
 if DATASET_PATH.exists():
     df = pd.read_csv(DATASET_PATH)
@@ -317,6 +390,134 @@ def api_train_models():
 
     metrics = build_model_metrics()
     return jsonify({"success": True, "metrics": metrics["metrics"], "bestModel": metrics.get("bestModel"), "totalTimeMs": 0})
+
+
+@app.route("/api/models/compare", methods=["POST"])
+def api_compare_models():
+    data = request.get_json() or {}
+    text = data.get("text", "")
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "Request body must include a non-empty 'text' field."}), 400
+
+    comparisons = [build_sentiment_result_one(text, model_name) for model_name in ["naive_bayes", "logistic_regression", "svm"]]
+    labels = [c["label"] for c in comparisons]
+    consensus, agreement = consensus_label(labels)
+
+    return jsonify({
+        "text": text,
+        "comparisons": comparisons,
+        "consensus": consensus,
+        "agreement": round(agreement, 3),
+    })
+
+
+# ─── EMOTION MODEL ENDPOINTS ───────────────────────────────────────────────────
+
+@app.route("/api/emotion/metrics", methods=["GET"])
+def api_emotion_metrics():
+    """Return emotion model metrics from training."""
+    if not emotion_metrics:
+        return jsonify({
+            "trained": False,
+            "metrics": [],
+            "bestModel": None,
+            "error": "Emotion models not trained. Run train_emotion_models.py"
+        }), 400
+    
+    return jsonify({
+        "trained": True,
+        "dataset_size": emotion_metrics.get("dataset_size"),
+        "emotion_labels": emotion_metrics.get("emotion_labels"),
+        "models": emotion_metrics.get("models", []),
+        "best_model": emotion_metrics.get("best_model"),
+        "train_test_split": emotion_metrics.get("train_test_split"),
+    })
+
+
+@app.route("/api/emotion/analyze", methods=["POST"])
+def api_emotion_analyze():
+    """Classify text emotion using the best emotion model."""
+    if not emotion_vectorizer or not emotion_models:
+        return jsonify({"error": "Emotion models not available"}), 400
+    
+    data = request.get_json() or {}
+    text = data.get("text", "")
+    model_name = data.get("model")  # Optional, defaults to best model
+    
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "Request body must include a non-empty 'text' field."}), 400
+    
+    # Default to best model if not specified or if model doesn't exist
+    if not model_name or model_name not in emotion_models:
+        model_name = emotion_metrics.get("best_model", "naive_bayes") if emotion_metrics else "naive_bayes"
+    
+    model = get_emotion_model(model_name)
+    if not model:
+        return jsonify({"error": f"Emotion model '{model_name}' not available"}), 400
+    
+    # Preprocess and predict
+    clean_text = preprocess(text)
+    vector = emotion_vectorizer.transform([clean_text])
+    prediction = model.predict(vector)[0]
+    scores = normalize_emotion_probs(model, vector)
+    confidence = scores.get(prediction, 0.0)
+    
+    return jsonify({
+        "originalText": text,
+        "emotion": prediction,
+        "confidence": round(confidence, 4),
+        "scores": scores,
+        "model": model_name,
+        "processedText": clean_text,
+    })
+
+
+@app.route("/api/emotion/compare", methods=["POST"])
+def api_emotion_compare():
+    """Compare all emotion models on the same text."""
+    if not emotion_vectorizer or not emotion_models:
+        return jsonify({"error": "Emotion models not available"}), 400
+    
+    data = request.get_json() or {}
+    text = data.get("text", "")
+    
+    if not isinstance(text, str) or not text.strip():
+        return jsonify({"error": "Request body must include a non-empty 'text' field."}), 400
+    
+    clean_text = preprocess(text)
+    vector = emotion_vectorizer.transform([clean_text])
+    
+    comparisons = []
+    predictions = []
+    
+    for model_name, model in emotion_models.items():
+        prediction = model.predict(vector)[0]
+        scores = normalize_emotion_probs(model, vector)
+        confidence = scores.get(prediction, 0.0)
+        
+        comparisons.append({
+            "model": model_name,
+            "emotion": prediction,
+            "confidence": round(confidence, 4),
+            "scores": scores,
+        })
+        predictions.append(prediction)
+    
+    # Compute consensus and agreement
+    emotion_counts = {}
+    for e in predictions:
+        emotion_counts[e] = emotion_counts.get(e, 0) + 1
+    
+    consensus = max(emotion_counts, key=emotion_counts.get)
+    agreement = round(max(emotion_counts.values()) / len(predictions), 4)
+    
+    return jsonify({
+        "text": text,
+        "comparisons": comparisons,
+        "consensus": consensus,
+        "agreement": agreement,
+        "modelCount": len(emotion_models),
+    })
 
 
 @app.route("/predict", methods=["POST"])

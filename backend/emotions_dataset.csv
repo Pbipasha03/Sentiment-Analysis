@@ -1,0 +1,53 @@
+text,emotion
+"I love this product, it's amazing!",happy
+This is the worst experience ever.,sad
+"It's okay, not too bad.",neutral
+Absolutely fantastic service!,happy
+"I hate it, very disappointing.",angry
+"Nothing special, average quality.",neutral
+Really happy with the results!,happy
+"Terrible, will not recommend.",angry
+"It works fine, satisfied.",neutral
+"Awful experience, very bad.",sad
+"This is wonderful news!",happy
+"I'm so sad about this.",sad
+"It's just mediocre.",neutral
+"I'm furious with this service!",angry
+"This makes me anxious.",fear
+"I can't believe this happened!",surprise
+"Fantastic job!",happy
+"I'm devastated.",sad
+"This is normal.",neutral
+"This infuriates me!",angry
+"I'm scared of what will happen.",fear
+"Oh wow, unexpected!",surprise
+"Excellent work, very pleased!",happy
+"I feel miserable.",sad
+"Standard performance.",neutral
+"Very angry about the delay.",angry
+"Worried about the outcome.",fear
+"Amazed by the quality!",surprise
+"Thrilled with this!",happy
+"Heartbroken by the news.",sad
+"It's unremarkable.",neutral
+"This makes me so mad!",angry
+"Terrified of the results.",fear
+"Shocked and delighted!",surprise
+"Couldn't be happier!",happy
+"Disappointed and sad.",sad
+"Just regular, nothing special.",neutral
+"Absolutely enraged!",angry
+"Nervous and fearful.",fear
+"Astonished and amazed!",surprise
+"I'm overjoyed!",happy
+"This breaks my heart.",sad
+"Average experience.",neutral
+"So frustrated and angry!",angry
+"Scared and uncertain.",fear
+"Utterly surprised!",surprise
+"Best day ever!",happy
+"Saddest moment of my life.",sad
+"Completely ordinary.",neutral
+"Can't stand this!",angry
+"Petrified.",fear
+"Can't believe my luck!",surprise
