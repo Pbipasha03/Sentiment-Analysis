@@ -35,7 +35,7 @@ function Router() {
     </Layout>
   );
 }
-setBaseUrl("http://127.0.0.1:5000");
+setBaseUrl("http://127.0.0.1:5002");
 function App() {
   return (
     <QueryClientProvider client={queryClient}>

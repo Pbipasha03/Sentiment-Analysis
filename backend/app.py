@@ -350,50 +350,94 @@ def api_analyze_sentiment():
 def api_analyze_batch():
     """Analyze sentiment for batch of texts (from CSV upload).
     
-    Request body:
+    This endpoint accepts batch predictions matching AnalyzeBatchRequest schema.
+    The frontend can send either format:
+    
+    Format 1 (Recommended - matches API schema):
+    {
+        "texts": ["text1", "text2", ...],
+        "model": "naive_bayes"
+    }
+    
+    Format 2 (Legacy - wrapped in 'data'):
     {
         "data": {
             "texts": ["text1", "text2", ...],
-            "model": "naive_bayes" | "logistic_regression" | "svm"
+            "model": "naive_bayes"
         }
-    }
-    
-    Response:
-    {
-        "results": [
-            {"text": "...", "label": "positive"/"negative"/"neutral", "confidence": 0.95},
-            ...
-        ],
-        "summary": {
-            "total": 10,
-            "positive": 6,
-            "negative": 2,
-            "neutral": 2
-        },
-        "processingTimeMs": 123
     }
     """
     try:
         start_time = time.time()
-        data = request.get_json() or {}
-        batch_data = data.get("data", {})
-        texts = batch_data.get("texts", [])
-        model_name = batch_data.get("model", "naive_bayes")
         
-        # Validate input
-        if not texts or not isinstance(texts, list):
-            return jsonify({"error": "Request must include 'data.texts' as non-empty array"}), 400
+        # Get JSON data
+        json_data = request.get_json()
+        if not json_data:
+            print("❌ No JSON data received")
+            return jsonify({"error": "Request body must be JSON"}), 400
         
-        if not all(isinstance(t, str) and t.strip() for t in texts):
-            return jsonify({"error": "All texts must be non-empty strings"}), 400
+        print(f"📥 Received batch request")
+        print(f"📥 Request keys: {list(json_data.keys())}")
+        print(f"📥 Request data: {str(json_data)[:200]}")  # First 200 chars
+        
+        # Extract texts and model - support both formats
+        texts = None
+        model_name = "naive_bayes"
+        
+        # Try new format first (matches AnalyzeBatchRequest schema)
+        if 'texts' in json_data and not 'data' in json_data:
+            texts = json_data.get('texts', [])
+            model_name = json_data.get('model', 'naive_bayes')
+            print(f"✅ Using direct format: {len(texts)} texts, model={model_name}")
+        # Fall back to old format (wrapped in 'data')
+        elif 'data' in json_data:
+            data_wrapper = json_data.get('data', {})
+            texts = data_wrapper.get('texts', [])
+            model_name = data_wrapper.get('model', 'naive_bayes')
+            print(f"✅ Using wrapped format: {len(texts)} texts, model={model_name}")
+        
+        # Validate texts is a list
+        if not isinstance(texts, list):
+            print(f"❌ Texts not a list: {type(texts)}")
+            return jsonify({
+                "error": f"'texts' must be an array. Got: {type(texts).__name__}"
+            }), 400
+        
+        # Validate texts is not empty
+        if len(texts) == 0:
+            print(f"❌ Texts array is empty")
+            return jsonify({"error": "'texts' array is empty"}), 400
+        
+        # Validate all texts are strings
+        for i, t in enumerate(texts):
+            if not isinstance(t, str):
+                print(f"❌ Text at index {i} is not a string: {type(t)}")
+                return jsonify({
+                    "error": f"Text at index {i} must be a string, got {type(t).__name__}"
+                }), 400
+        
+        # Remove empty strings and trim whitespace
+        texts = [t.strip() for t in texts if t.strip()]
+        
+        if not texts:
+            print(f"❌ All texts were empty after trimming")
+            return jsonify({"error": "All texts were empty after trimming"}), 400
+        
+        print(f"✅ Validated {len(texts)} texts for analysis")
         
         # Check if models are trained
-        if not vectorizer or not models:
-            return jsonify({"error": "Models not trained. Please train models first."}), 400
+        if not vectorizer:
+            print(f"❌ Vectorizer not loaded")
+            return jsonify({"error": "Vectorizer not trained. Please train models first."}), 400
+        
+        if not models:
+            print(f"❌ No models loaded")
+            return jsonify({"error": "No models trained. Please train models first."}), 400
         
         # Process each text
         results = []
-        for text in texts:
+        errors = 0
+        for idx, text in enumerate(texts):
             try:
                 # Preprocess
                 clean_text = preprocess(text)
@@ -412,38 +456,54 @@ def api_analyze_batch():
                 confidence = float(scores[label])
                 
                 results.append({
+                    "index": idx,
                     "text": text[:100],  # Truncate for display
                     "label": label.lower(),  # "positive", "negative", "neutral"
                     "confidence": round(confidence, 2),
-                    "scores": {k: round(v, 3) for k, v in scores.items()}
+                    "model": model_name
                 })
             except Exception as e:
-                # If one text fails, still process others but mark as error
+                errors += 1
+                print(f"⚠️ Error processing text {idx}: {str(e)}")
+                # Still include failed items but mark as unknown
                 results.append({
+                    "index": idx,
                     "text": text[:100],
                     "label": "unknown",
                     "confidence": 0.0,
-                    "error": str(e)
+                    "model": model_name
                 })
         
         # Compute summary
+        positive_count = sum(1 for r in results if r.get("label") == "positive")
+        negative_count = sum(1 for r in results if r.get("label") == "negative")
+        neutral_count = sum(1 for r in results if r.get("label") == "neutral")
+        total = len(results)
+        
         summary = {
-            "total": len(results),
-            "positive": sum(1 for r in results if r.get("label") == "positive"),
-            "negative": sum(1 for r in results if r.get("label") == "negative"),
-            "neutral": sum(1 for r in results if r.get("label") == "neutral"),
+            "total": total,
+            "positive": positive_count,
+            "negative": negative_count,
+            "neutral": neutral_count,
+            "positivePercent": round((positive_count / total * 100) if total > 0 else 0, 1),
+            "negativePercent": round((negative_count / total * 100) if total > 0 else 0, 1),
+            "neutralPercent": round((neutral_count / total * 100) if total > 0 else 0, 1),
         }
         
         processing_time_ms = int((time.time() - start_time) * 1000)
         
+        print(f"✅ Batch complete: {total} texts analyzed ({errors} errors), {positive_count}P/{negative_count}N/{neutral_count}Nu, {processing_time_ms}ms")
+        
         return jsonify({
             "results": results,
             "summary": summary,
-            "processingTimeMs": processing_time_ms,
-            "model": model_name
+            "processingTimeMs": processing_time_ms
         }), 200
         
     except Exception as e:
+        print(f"❌ Batch processing error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": f"Batch processing failed: {str(e)}"}), 500
 
 
@@ -635,4 +695,4 @@ def predict():
 
 
 if __name__ == "__main__":
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5002, debug=True)
