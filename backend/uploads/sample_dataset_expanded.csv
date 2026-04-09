@@ -1,0 +1,52 @@
+text,sentiment
+"I love this product, it's amazing!",Positive
+"This is the worst experience ever.",Negative
+"It's okay, not too bad.",Neutral
+"Absolutely fantastic service!",Positive
+"I hate it, very disappointing.",Negative
+"Nothing special, average quality.",Neutral
+"Really happy with the results!",Positive
+"Terrible, will not recommend.",Negative
+"It works fine, satisfied.",Neutral
+"Best purchase ever!",Positive
+"Worst purchase I've made.",Negative
+"It's decent, nothing special.",Neutral
+"Excellent quality and fast shipping!",Positive
+"Total waste of money.",Negative
+"Acceptable but could be better.",Neutral
+"I'm thrilled with this!",Positive
+"Absolutely horrid.",Negative
+"Average in every way.",Neutral
+"Perfect! Exceeded expectations!",Positive
+"Dreadful experience.",Negative
+"Okay, I'm satisfied.",Neutral
+"Outstanding performance!",Positive
+"Complete disaster.",Negative
+"Meets expectations.",Neutral
+"Love it!",Positive
+"Hate it!",Negative
+"It's alright.",Neutral
+"Couldn't be happier!",Positive
+"Completely useless.",Negative
+"Does the job.",Neutral
+"Amazing value for money!",Positive
+"Not worth the price.",Negative
+"Decent enough.",Neutral
+"Fantastic!",Positive
+"Appalling.",Negative
+"Satisfactory.",Neutral
+"Great product!",Positive
+"Terrible!",Negative
+"Decent!",Neutral
+"Wonderful experience!",Positive
+"Nightmarish.",Negative
+"Reasonable.",Neutral
+"Superb!",Positive
+"Awful!",Negative
+"Fair.",Neutral
+"Incredible!",Positive
+"Disappointing.",Negative
+"Okay.",Neutral
+"Perfect!",Positive
+"Bad!",Negative
+"Good.",Neutral

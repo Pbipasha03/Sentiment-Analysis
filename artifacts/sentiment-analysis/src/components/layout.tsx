@@ -10,11 +10,12 @@ import {
   SidebarMenuItem,
   SidebarProvider,
 } from "@/components/ui/sidebar";
-import { BarChart3, Cloud, Columns, FileOutput, Home, Library, Settings, MessageSquare } from "lucide-react";
+import { BarChart3, Cloud, Columns, FileOutput, Home, Library, Settings, MessageSquare, Zap } from "lucide-react";
 import React from "react";
 
 const NAV_ITEMS = [
   { title: "Dashboard", url: "/", icon: Home },
+  { title: "ML Training", url: "/ml-training", icon: Zap },
   { title: "Analyze Text", url: "/analyze", icon: MessageSquare },
   { title: "Batch Analysis", url: "/batch", icon: Library },
   { title: "Model Performance", url: "/models", icon: BarChart3 },

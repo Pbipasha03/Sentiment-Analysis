@@ -14,6 +14,7 @@ import Models from "@/pages/models";
 import Compare from "@/pages/compare";
 import WordCloud from "@/pages/wordcloud";
 import Report from "@/pages/report";
+import MLTraining from "@/pages/ml-training";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={Home} />
+        <Route path="/ml-training" component={MLTraining} />
         <Route path="/analyze" component={Analyze} />
         <Route path="/batch" component={BatchAnalysis} />
         <Route path="/models" component={Models} />
