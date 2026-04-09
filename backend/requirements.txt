@@ -1,5 +1,27 @@
-flask==3.0.3
-flask-cors==4.0.1
+# Complete Sentiment Analysis System Requirements
+# Install with: pip install -r requirements.txt
+
+# Core ML/Data Processing
 scikit-learn==1.5.2
 pandas==2.2.3
+numpy==1.26.4
+joblib==1.4.2
 nltk==3.9.1
+
+# Flask API
+Flask==3.0.3
+flask-cors==4.0.1
+Werkzeug==3.0.3
+
+# Frontend & Visualization
+streamlit==1.39.0
+plotly==5.24.1
+
+# File handling
+openpyxl==3.1.3
+pandas-openpyxl==0.3.0
+
+# Optional but recommended
+requests==2.32.3
+python-dotenv==1.0.1
+gunicorn==23.0.0
