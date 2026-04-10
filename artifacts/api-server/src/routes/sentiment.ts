@@ -16,7 +16,7 @@ import {
   GetWordCloudDataBody,
   GetWordCloudDataResponse,
 } from "@workspace/api-zod";
-import { getModelStore, trainAllModels, getModel, ensureDefaultModelsTrained } from "../lib/modelStore.js";
+import { getModelStore, trainAllModels, getModel, ensureDefaultModelsTrained, initializeModelStore } from "../lib/modelStore.js";
 import { getDefaultDataset, SAMPLE_DATASET } from "../lib/sampleDataset.js";
 import { extractKeywords, getWordFrequencies } from "../lib/nlpUtils.js";
 import type { SentimentLabel, ModelName } from "../lib/mlModels.js";
@@ -130,6 +130,8 @@ router.post("/models/train", async (req, res): Promise<void> => {
     return;
   }
 
+  await initializeModelStore();
+
   const startTime = Date.now();
   let texts: string[];
   let labels: SentimentLabel[];
@@ -162,6 +164,7 @@ router.post("/models/train", async (req, res): Promise<void> => {
 });
 
 router.get("/models/metrics", async (_req, res): Promise<void> => {
+  await initializeModelStore();
   const store = getModelStore();
 
   if (!store.trained) {

@@ -32,6 +32,29 @@ export interface ModelMetrics {
   trainingTimeMs: number;
 }
 
+export interface NaiveBayesModelState {
+  logPriors: Record<SentimentLabel, number>;
+  logLikelihoods: Record<SentimentLabel, number[]>;
+  vocab: string[];
+  trained: boolean;
+}
+
+export interface LogisticRegressionModelState {
+  weights: number[][];
+  biases: number[];
+  vocab: string[];
+  idf: Record<string, number>;
+  trained: boolean;
+}
+
+export interface SVMModelState {
+  weights: Record<SentimentLabel, number[]>;
+  biases: Record<SentimentLabel, number>;
+  vocab: string[];
+  idf: Record<string, number>;
+  trained: boolean;
+}
+
 const LABELS: SentimentLabel[] = ["positive", "negative", "neutral"];
 const LABEL_INDEX: Record<SentimentLabel, number> = { positive: 0, negative: 1, neutral: 2 };
 
@@ -127,6 +150,30 @@ export class NaiveBayesModel {
   }
 
   isTrained(): boolean { return this.trained; }
+
+  exportState(): NaiveBayesModelState {
+    return {
+      logPriors: { ...this.logPriors },
+      logLikelihoods: {
+        positive: [...this.logLikelihoods.positive],
+        negative: [...this.logLikelihoods.negative],
+        neutral: [...this.logLikelihoods.neutral],
+      },
+      vocab: [...this.vocab],
+      trained: this.trained,
+    };
+  }
+
+  loadState(state: NaiveBayesModelState): void {
+    this.logPriors = { ...state.logPriors };
+    this.logLikelihoods = {
+      positive: [...state.logLikelihoods.positive],
+      negative: [...state.logLikelihoods.negative],
+      neutral: [...state.logLikelihoods.neutral],
+    };
+    this.vocab = [...state.vocab];
+    this.trained = state.trained;
+  }
 }
 
 export class LogisticRegressionModel {
@@ -195,6 +242,24 @@ export class LogisticRegressionModel {
   }
 
   isTrained(): boolean { return this.trained; }
+
+  exportState(): LogisticRegressionModelState {
+    return {
+      weights: this.weights.map((row) => [...row]),
+      biases: [...this.biases],
+      vocab: [...this.vocab],
+      idf: { ...this.idf },
+      trained: this.trained,
+    };
+  }
+
+  loadState(state: LogisticRegressionModelState): void {
+    this.weights = state.weights.map((row) => [...row]);
+    this.biases = [...state.biases];
+    this.vocab = [...state.vocab];
+    this.idf = { ...state.idf };
+    this.trained = state.trained;
+  }
 }
 
 export class SVMModel {
@@ -262,6 +327,32 @@ export class SVMModel {
   }
 
   isTrained(): boolean { return this.trained; }
+
+  exportState(): SVMModelState {
+    return {
+      weights: {
+        positive: [...this.weights.positive],
+        negative: [...this.weights.negative],
+        neutral: [...this.weights.neutral],
+      },
+      biases: { ...this.biases },
+      vocab: [...this.vocab],
+      idf: { ...this.idf },
+      trained: this.trained,
+    };
+  }
+
+  loadState(state: SVMModelState): void {
+    this.weights = {
+      positive: [...state.weights.positive],
+      negative: [...state.weights.negative],
+      neutral: [...state.weights.neutral],
+    };
+    this.biases = { ...state.biases };
+    this.vocab = [...state.vocab];
+    this.idf = { ...state.idf };
+    this.trained = state.trained;
+  }
 }
 
 export function computeMetrics(
