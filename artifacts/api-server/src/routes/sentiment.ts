@@ -164,7 +164,7 @@ router.post("/models/train", async (req, res): Promise<void> => {
 });
 
 router.get("/models/metrics", async (_req, res): Promise<void> => {
-  await initializeModelStore();
+  await ensureDefaultModelsTrained();
   const store = getModelStore();
 
   if (!store.trained) {

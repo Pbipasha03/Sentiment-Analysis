@@ -25,14 +25,14 @@ export default function Compare() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Model Comparison</h1>
         <p className="text-muted-foreground mt-2">
-          Run the same input through all models to observe behavioral differences.
+          Run the same input through calibrated models and review the final sentiment.
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Input Context</CardTitle>
-          <CardDescription>Enter a complex sentence with nuance or sarcasm to test the models.</CardDescription>
+          <CardDescription>Enter a sentence to check whether the tone is positive, negative, or neutral.</CardDescription>
         </CardHeader>
         <CardContent>
           <Textarea 

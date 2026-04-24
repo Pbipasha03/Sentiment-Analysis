@@ -2,16 +2,18 @@
   "name": "workspace",
   "version": "0.0.0",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "preinstall": "sh -c 'rm -f package-lock.json yarn.lock; case \"$npm_config_user_agent\" in pnpm/*) ;; *) echo \"Use pnpm instead\" >&2; exit 1 ;; esac'",
-    "build": "pnpm run typecheck && pnpm -r --if-present run build",
+    "build": "npx --yes pnpm run typecheck && npx --yes pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
-    "backend:build": "pnpm --filter @workspace/api-server run build",
+    "typecheck": "npx --yes pnpm run typecheck:libs && npx --yes pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "backend:build": "npx --yes pnpm --filter @workspace/api-server run build",
     "backend:start": "PORT=8000 node --enable-source-maps ./artifacts/api-server/dist/index.mjs",
-    "frontend:dev": "pnpm --filter @workspace/sentiment-analysis run dev:local",
-    "dev": "echo 'Starting full-stack development environment...' && npm run background:dev",
-    "background:dev": "pnpm --parallel backend:build frontend:dev"
+    "frontend:dev": "npx --yes pnpm --filter @workspace/sentiment-analysis run dev:local",
+    "dev": "bash ./START_SIMPLE.sh",
+    "start": "bash ./START_SIMPLE.sh",
+    "background:dev": "bash ./START_SIMPLE.sh"
   },
   "private": true,
   "devDependencies": {

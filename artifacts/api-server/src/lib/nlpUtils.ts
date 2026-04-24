@@ -1,3 +1,8 @@
+import type { SentimentLabel } from "./mlModels.js";
+
+// Negation words must be preserved for sentiment detection.
+const NEGATION_WORDS = new Set(["not", "no", "never", "neither", "nor", "isn't", "aren't", "wasn't", "weren't", "haven't", "hasn't", "hadn't", "don't", "doesn't", "didn't", "won't", "wouldn't", "can't", "couldn't", "shouldn't", "mightn't"]);
+
 const STOP_WORDS = new Set([
   "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for",
   "of", "with", "by", "from", "is", "are", "was", "were", "be", "been",
@@ -5,20 +10,116 @@ const STOP_WORDS = new Set([
   "could", "should", "may", "might", "shall", "can", "this", "that",
   "these", "those", "it", "its", "i", "me", "my", "we", "our", "you",
   "your", "he", "she", "they", "them", "his", "her", "their", "what",
-  "which", "who", "when", "where", "how", "not", "no", "so", "if",
+  "which", "who", "when", "where", "how", "so", "if",
   "about", "up", "out", "as", "just", "also", "than", "more", "all",
-  "am", "been", "before", "after", "very", "too", "then", "now", "here",
-  "there", "some", "any", "each", "every", "both", "few", "more", "most",
+  "am", "been", "before", "after", "too", "then", "now", "here",
+  "there", "some", "any", "each", "every", "both", "few", "most",
   "other", "into", "through", "during", "until", "while", "although",
   "because", "since", "though", "however", "therefore", "rt", "http",
   "https", "www", "com", "co", "de", "en", "el", "la", "le", "les"
 ]);
 
-export function preprocessText(text: string): string {
+// Negation patterns - words/phrases that should be converted to their opposite sentiment.
+const NEGATION_DICT: Record<string, string> = {
+  "neither good nor bad": "neutral",
+  "not bad but not great": "okay",
+  "not too good not too bad": "neutral",
+  "not too bad": "okay",
+  "not bad": "okay",
+  "not satisfied": "unsatisfied",
+  "not good": "bad",
+  "not great": "bad",
+  "not excellent": "terrible",
+  "not amazing": "terrible",
+  "not happy": "sad",
+  "not interested": "disinterested",
+  "not impressive": "disappointing",
+  "not impressed": "disappointed",
+  "not acceptable": "unacceptable",
+  "not helpful": "unhelpful",
+  "not useful": "useless",
+  "not work": "broken",
+  "does not work": "broken",
+  "doesn't work": "broken",
+  "do not work": "broken",
+  "don't work": "broken",
+  "not understand": "confused",
+  "not sure": "uncertain",
+  "not recommend": "unrecommendable",
+  "do not recommend": "unrecommendable",
+  "don't recommend": "unrecommendable",
+  "cannot recommend": "unrecommendable",
+  "can't recommend": "unrecommendable",
+  "not worth": "worthless",
+  "don't like": "dislike",
+  "don't want": "unwanted",
+  "never liked": "hated",
+  "no good": "bad"
+};
+
+const STRONG_POSITIVE_WORDS = new Set([
+  "love", "amazing", "excellent", "fantastic", "wonderful", "perfect",
+  "best", "good", "great", "awesome", "happy", "satisfied", "outstanding", "thrilled", "grateful",
+  "beautiful", "incredible", "efficient", "excited", "proud", "recommend",
+  "impressed", "superb", "phenomenal", "divine", "breathtaking", "overjoyed",
+  "blessed", "masterpiece", "won", "accepted", "promoted", "like", "liked",
+  "helpful", "useful", "reliable", "pleasant", "smooth", "easy",
+]);
+
+const STRONG_NEGATIVE_WORDS = new Set([
+  "hate", "terrible", "awful", "horrible", "worst", "disgusting", "broken",
+  "useless", "poor", "disappointed", "disappointing", "unsatisfied",
+  "unacceptable", "worthless", "bad", "sad", "unhappy", "frustrated",
+  "furious", "miserable", "scam", "scammed", "fraudulent", "refund", "waste",
+  "regret", "regretting", "unreliable", "rude", "toxic", "failed", "failure",
+  "disaster", "drained", "exhausted", "cancelled", "ignored", "complaint",
+  "cold", "wrong", "unhelpful", "dislike", "unrecommendable",
+]);
+
+const NEUTRAL_PHRASES = [
+  "neither good nor bad",
+  "not bad but not great",
+  "not bad but not excellent",
+  "not too good not too bad",
+  "not too bad",
+  "not bad",
+  "okay",
+  "average",
+  "mediocre",
+  "so so",
+  "standard",
+  "normal",
+];
+
+export interface RuleBasedSentiment {
+  label: SentimentLabel;
+  confidence: number;
+}
+
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Handle negation patterns BEFORE other preprocessing
+function handleNegation(text: string): string {
   let processed = text.toLowerCase();
+  // Replace negation patterns with their opposite sentiments
+  for (const [pattern, replacement] of Object.entries(NEGATION_DICT)) {
+    processed = processed.replace(new RegExp(`\\b${escapeRegExp(pattern)}\\b`, "g"), replacement);
+  }
+  return processed;
+}
+
+export function preprocessText(text: string): string {
+  // Step 1: Handle negation FIRST
+  let processed = handleNegation(text);
+  
+  // Step 2: Clean URLs and mentions
   processed = processed.replace(/https?:\/\/\S+/g, "");
   processed = processed.replace(/@\w+/g, "");
   processed = processed.replace(/#(\w+)/g, "$1");
+  
+  // Step 3: Clean special characters
   processed = processed.replace(/[^a-z0-9\s']/g, " ");
   processed = processed.replace(/\s+/g, " ").trim();
   return processed;
@@ -26,7 +127,33 @@ export function preprocessText(text: string): string {
 
 export function tokenize(text: string): string[] {
   const processed = preprocessText(text);
-  return processed.split(" ").filter(w => w.length > 2 && !STOP_WORDS.has(w));
+  // Keep negation words (they contain negative sentiment)
+  return processed.split(" ").filter(w => w.length > 2 && (!STOP_WORDS.has(w) || NEGATION_WORDS.has(w)));
+}
+
+export function classifyWithRules(text: string): RuleBasedSentiment | null {
+  const lower = text.toLowerCase();
+
+  for (const phrase of NEUTRAL_PHRASES) {
+    if (new RegExp(`\\b${escapeRegExp(phrase)}\\b`).test(lower)) {
+      return { label: "neutral", confidence: 0.9 };
+    }
+  }
+
+  const tokens = tokenize(text);
+  let positive = 0;
+  let negative = 0;
+
+  for (const token of tokens) {
+    if (STRONG_POSITIVE_WORDS.has(token)) positive += 1;
+    if (STRONG_NEGATIVE_WORDS.has(token)) negative += 1;
+  }
+
+  if (positive === 0 && negative === 0) return null;
+  if (negative > positive) return { label: "negative", confidence: negative >= 2 ? 0.95 : 0.9 };
+  if (positive > negative) return { label: "positive", confidence: positive >= 2 ? 0.95 : 0.9 };
+
+  return { label: "neutral", confidence: 0.75 };
 }
 
 export function extractKeywords(text: string, topN: number = 10): string[] {

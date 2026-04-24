@@ -28,7 +28,7 @@ export interface ModelStore {
 }
 
 interface PersistedModelStore {
-  version: 1;
+  version: number;
   metrics: ModelMetrics[];
   bestModel: ModelName;
   lastTrainedAt: string | null;
@@ -38,6 +38,8 @@ interface PersistedModelStore {
   svm: SVMModelState;
 }
 
+const MODEL_STORE_VERSION = 3;
+const MIN_PERSISTED_TRAINING_SAMPLES = 50;
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(moduleDir, "..", "..");
 const dataDir = resolve(packageRoot, ".data");
@@ -67,7 +69,7 @@ function resetStore(): void {
 
 function serializeStore(): PersistedModelStore {
   return {
-    version: 1,
+    version: MODEL_STORE_VERSION,
     metrics: store.metrics,
     bestModel: store.bestModel,
     lastTrainedAt: store.lastTrainedAt?.toISOString() ?? null,
@@ -79,6 +81,31 @@ function serializeStore(): PersistedModelStore {
 }
 
 function hydrateStore(snapshot: PersistedModelStore): void {
+  if (snapshot.version !== MODEL_STORE_VERSION) {
+    logger.info(
+      {
+        expectedVersion: MODEL_STORE_VERSION,
+        foundVersion: snapshot.version,
+      },
+      "Ignoring stale persisted models",
+    );
+    resetStore();
+    return;
+  }
+
+  const largestTrainingSet = Math.max(...snapshot.metrics.map((metric) => metric.trainingSamples), 0);
+  if (largestTrainingSet < MIN_PERSISTED_TRAINING_SAMPLES) {
+    logger.info(
+      {
+        minTrainingSamples: MIN_PERSISTED_TRAINING_SAMPLES,
+        largestTrainingSet,
+      },
+      "Ignoring weak persisted models",
+    );
+    resetStore();
+    return;
+  }
+
   const naiveBayes = new NaiveBayesModel();
   naiveBayes.loadState(snapshot.naiveBayes);
 
@@ -171,7 +198,16 @@ export async function trainAllModels(texts: string[], labels: SentimentLabel[]):
   store.metrics = metricsResults;
   store.lastTrainedAt = new Date();
   store.trained = true;
-  store.bestModel = metricsResults.reduce((best, metric) => (metric.accuracy > best.accuracy ? metric : best)).model;
+  const modelPriority: Record<ModelName, number> = {
+    logistic_regression: 0,
+    naive_bayes: 1,
+    svm: 2,
+  };
+  store.bestModel = metricsResults.reduce((best, metric) => {
+    if (metric.accuracy !== best.accuracy) return metric.accuracy > best.accuracy ? metric : best;
+    if (metric.f1Score !== best.f1Score) return metric.f1Score > best.f1Score ? metric : best;
+    return modelPriority[metric.model] < modelPriority[best.model] ? metric : best;
+  }).model;
 
   await persistStore();
 

@@ -1,6 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
-import { initializeModelStore } from "./lib/modelStore.js";
+import { ensureDefaultModelsTrained } from "./lib/modelStore.js";
 
 const rawPort = process.env["PORT"];
 
@@ -16,7 +16,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-await initializeModelStore();
+await ensureDefaultModelsTrained();
 
 app.listen(port, (err) => {
   if (err) {
